@@ -12,8 +12,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // Background color picker logic
     const backgroundColorPicker = document.getElementById('backgroundColorPicker');
     if (backgroundColorPicker) {
+        // Set initial canvas background color
+        canvas.style.backgroundColor = '#ffffff';
+        
         backgroundColorPicker.addEventListener('input', (e) => {
-            document.body.style.backgroundColor = e.target.value;
+            canvas.style.backgroundColor = e.target.value;
+            // Update the stored background color in the current section
+            const page = pages[currentPageIdx];
+            if (page.sections.length) {
+                const section = page.sections[currentSectionIdx];
+                section.backgroundColor = e.target.value;
+            }
         });
     }
 
@@ -172,39 +181,63 @@ document.addEventListener('DOMContentLoaded', () => {
     // Update element properties
     window.updateElement = function(value, property) {
         if (!selectedElement) return;
-        
-        const element = selectedElement.querySelector('h2, p, button, img, hr');
+
+        // For text color, apply to all text elements inside selectedElement
+        // For background/border color, apply to the .draggable container
         switch(property) {
-            case 'text':
-                element.textContent = value;
+            case 'text': {
+                const textEl = selectedElement.querySelector('h2, p, button, img, hr');
+                if (textEl) textEl.textContent = value;
                 break;
-            case 'size':
-                const newElement = document.createElement(value);
-                newElement.textContent = element.textContent;
-                element.parentNode.replaceChild(newElement, element);
-                break;
-            case 'style':
-                element.className = value;
-                break;
-            case 'src':
-                element.src = value;
-                break;
-            case 'alt':
-                element.alt = value;
-                break;
-            case 'textColor':
-                element.style.color = value;
-                break;
-            case 'backgroundColor':
-                element.style.backgroundColor = value;
-                break;
-            case 'borderColor':
-                if (element.tagName.toLowerCase() === 'hr') {
-                    element.style.borderColor = value;
-                } else {
-                    element.style.border = `1px solid ${value}`;
+            }
+            case 'size': {
+                const oldEl = selectedElement.querySelector('h2, p');
+                if (oldEl) {
+                    const newEl = document.createElement(value);
+                    newEl.textContent = oldEl.textContent;
+                    oldEl.parentNode.replaceChild(newEl, oldEl);
+                    updatePropertiesPanel(selectedElement);
                 }
                 break;
+            }
+            case 'style': {
+                const btnEl = selectedElement.querySelector('button');
+                if (btnEl) btnEl.className = value;
+                break;
+            }
+            case 'src': {
+                const imgEl = selectedElement.querySelector('img');
+                if (imgEl) imgEl.src = value;
+                updatePropertiesPanel(selectedElement);
+                break;
+            }
+            case 'alt': {
+                const imgEl = selectedElement.querySelector('img');
+                if (imgEl) imgEl.alt = value;
+                break;
+            }
+            case 'textColor': {
+                // Apply to all text elements inside selectedElement
+                const textEls = selectedElement.querySelectorAll('h1, h2, h3, h4, h5, h6, p, button, label, span');
+                textEls.forEach(el => el.style.color = value);
+                break;
+            }
+            case 'backgroundColor': {
+                // Apply to the draggable container
+                selectedElement.style.backgroundColor = value;
+                break;
+            }
+            case 'borderColor': {
+                // Apply to the draggable container
+                selectedElement.style.borderColor = value;
+                // If inner is HR, also apply to HR
+                const hrEl = selectedElement.querySelector('hr');
+                if (hrEl) hrEl.style.borderColor = value;
+                // If inner is IMG, also apply to IMG
+                const imgEl = selectedElement.querySelector('img');
+                if (imgEl) imgEl.style.borderColor = value;
+                break;
+            }
         }
     };
 
@@ -619,10 +652,13 @@ document.addEventListener('DOMContentLoaded', () => {
         
         element.appendChild(removeBtn);
         
-        // Add resize handle
-        const resizeHandle = document.createElement('div');
-        resizeHandle.className = 'resize-handle';
-        element.appendChild(resizeHandle);
+        // Add 8 resize handles (corners and sides)
+        const handlePositions = ['nw','n','ne','e','se','s','sw','w'];
+        handlePositions.forEach(pos => {
+            const handle = document.createElement('div');
+            handle.className = `resize-handle ${pos}`;
+            element.appendChild(handle);
+        });
         
         // Make element draggable within canvas
         element.addEventListener('dragstart', (e) => {
@@ -686,31 +722,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // Resize handling
-        resizeHandle.addEventListener('mousedown', function(e) {
-            e.stopPropagation();
-            e.preventDefault();
+        handlePositions.forEach(pos => {
+            const handle = element.querySelector(`.resize-handle.${pos}`);
+            if (handle) {
+                handle.addEventListener('mousedown', function(e) {
+                    e.stopPropagation();
+                    e.preventDefault();
 
-            let startX = e.clientX;
-            let startY = e.clientY;
-            let startWidth = parseInt(document.defaultView.getComputedStyle(element).width, 10);
-            let startHeight = parseInt(document.defaultView.getComputedStyle(element).height, 10);
+                    let startX = e.clientX;
+                    let startY = e.clientY;
+                    let startWidth = parseInt(document.defaultView.getComputedStyle(element).width, 10);
+                    let startHeight = parseInt(document.defaultView.getComputedStyle(element).height, 10);
 
-            function doDrag(e) {
-                let newWidth = startWidth + e.clientX - startX;
-                let newHeight = startHeight + e.clientY - startY;
+                    function doDrag(e) {
+                        let newWidth = startWidth + e.clientX - startX;
+                        let newHeight = startHeight + e.clientY - startY;
 
-                element.style.width = snap(Math.max(newWidth, gridSize)) + 'px';
-                element.style.height = snap(Math.max(newHeight, gridSize)) + 'px';
+                        element.style.width = snap(Math.max(newWidth, gridSize)) + 'px';
+                        element.style.height = snap(Math.max(newHeight, gridSize)) + 'px';
+                    }
+
+                    function stopDrag() {
+                        document.removeEventListener('mousemove', doDrag);
+                        document.removeEventListener('mouseup', stopDrag);
+                        saveToHistory();
+                    }
+
+                    document.addEventListener('mousemove', doDrag);
+                    document.addEventListener('mouseup', stopDrag);
+                });
             }
-
-            function stopDrag() {
-                document.removeEventListener('mousemove', doDrag);
-                document.removeEventListener('mouseup', stopDrag);
-                saveToHistory();
-            }
-
-            document.addEventListener('mousemove', doDrag);
-            document.addEventListener('mouseup', stopDrag);
         });
 
         element.ondragstart = () => false;
@@ -826,81 +867,6 @@ document.addEventListener('DOMContentLoaded', () => {
          canvas.appendChild(sectionDiv);
      };
 
-    // Update updateElement to store changes in data and trigger re-render
-    const originalUpdateElement = window.updateElement;
-    window.updateElement = function(value, property) {
-         if (!selectedElement) return;
-
-         const page = pages[currentPageIdx];
-         if (!page.sections.length) return;
-         const section = page.sections[currentSectionIdx];
-         const elData = section.elements.find(data => data.id === selectedElement.dataset.id);
-
-         if (elData) {
-             switch(property) {
-                 case 'text':
-                     // Handled by inline editing blur now
-                     // const innerEl = selectedElement.querySelector('h2, p, button');
-                     // if (innerEl) innerEl.textContent = value;
-                     // elData.text = value;
-                     break;
-                 case 'size':
-                     // Recreate element for size change (h1, h2, h3)
-                     // This part is complex with data, maybe handle size via width/height property?
-                     // For now, let's just change the tag in the DOM and update type in data
-                     const oldInnerEl = selectedElement.querySelector('h2, p');
-                     if (oldInnerEl) {
-                        const newInnerEl = document.createElement(value);
-                        newInnerEl.textContent = oldInnerEl.textContent;
-                        oldInnerEl.parentNode.replaceChild(newInnerEl, oldInnerEl);
-                        elData.type = value; // Update stored type
-                         // Need to update properties panel because tag changed
-                         updatePropertiesPanel(selectedElement);
-                     }
-                     break;
-                 case 'style': // For buttons
-                     const btnEl = selectedElement.querySelector('button');
-                     if (btnEl) btnEl.className = value;
-                     // Need to store button class in data?
-                     elData.style = value; // Store button style class
-                     break;
-                 case 'src':
-                     const imgEl = selectedElement.querySelector('img');
-                     if (imgEl) imgEl.src = value;
-                     elData.src = value;
-                     // Update properties panel to show new src
-                      updatePropertiesPanel(selectedElement);
-                     break;
-                 case 'alt':
-                     const imgElAlt = selectedElement.querySelector('img');
-                     if (imgElAlt) imgElAlt.alt = value;
-                     elData.alt = value;
-                     break;
-                 case 'textColor':
-                      const textEls = selectedElement.querySelectorAll('h2, p, button, hr'); // Apply to all potential text elements
-                      textEls.forEach(el => el.style.color = value);
-                      elData.color = value;
-                      break;
-                 case 'backgroundColor':
-                      selectedElement.style.backgroundColor = value;
-                      elData.backgroundColor = value;
-                      break;
-                 case 'borderColor':
-                      // Apply border color to the element container div
-                      selectedElement.style.borderColor = value;
-                      // If inner is HR, also apply to HR
-                      const hrEl = selectedElement.querySelector('hr');
-                      if (hrEl) hrEl.style.borderColor = value;
-
-                      elData.borderColor = value;
-                     break;
-             }
-             // No need to re-select here, properties panel update is manual or triggered by specific changes like size
-             // updatePropertiesPanel(selectedElement);
-         }
-
-    };
-
     // Initial render
     renderPages();
     // Need to add a default section if none exist on load
@@ -984,16 +950,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const canvasWidthDisplay = canvasWidth.nextElementSibling;
     const canvasHeightDisplay = canvasHeight.nextElementSibling;
 
+    // Set initial canvas size
+    canvas.style.width = '1200px';
+    canvas.style.height = '800px';
+
     canvasWidth.addEventListener('input', (e) => {
         const width = e.target.value;
         canvas.style.width = width + 'px';
         canvasWidthDisplay.textContent = width + 'px';
+        // Update the stored width in the current section
+        const page = pages[currentPageIdx];
+        if (page.sections.length) {
+            const section = page.sections[currentSectionIdx];
+            section.width = width;
+        }
     });
 
     canvasHeight.addEventListener('input', (e) => {
         const height = e.target.value;
         canvas.style.height = height + 'px';
         canvasHeightDisplay.textContent = height + 'px';
+        // Update the stored height in the current section
+        const page = pages[currentPageIdx];
+        if (page.sections.length) {
+            const section = page.sections[currentSectionIdx];
+            section.height = height;
+        }
     });
 
     // Element duplication
@@ -1149,4 +1131,61 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize history
     saveToHistory();
+
+    // Attach close event to all .close buttons
+    const closeButtons = document.querySelectorAll('.close');
+    closeButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const modal = btn.closest('.modal');
+            if (modal) modal.style.display = 'none';
+        });
+    });
+
+    // Helper to add drop listeners to container-content
+    function enableContainerDrop(containerContent) {
+        containerContent.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            containerContent.style.background = 'rgba(100,108,255,0.08)';
+        });
+        containerContent.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            containerContent.style.background = '';
+        });
+        containerContent.addEventListener('drop', (e) => {
+            e.preventDefault();
+            containerContent.style.background = '';
+            const elementType = e.dataTransfer.getData('text/plain');
+            if (elementType) {
+                // Create the new element
+                const newElement = createElement(elementType);
+                // Position relative to container
+                const rect = containerContent.getBoundingClientRect();
+                const dropX = e.clientX - rect.left;
+                const dropY = e.clientY - rect.top;
+                newElement.style.left = snap(dropX) + 'px';
+                newElement.style.top = snap(dropY) + 'px';
+                containerContent.appendChild(newElement);
+                updatePropertiesPanel(newElement);
+                saveToHistory();
+            }
+        });
+    }
+
+    // Patch createElement to enable drop on container-content
+    const originalCreateElement = createElement;
+    createElement = function(type) {
+        const element = originalCreateElement(type);
+        // If this is a container, enable drop on its content area
+        if (type === 'container') {
+            const containerContent = element.querySelector('.container-content');
+            if (containerContent) {
+                enableContainerDrop(containerContent);
+            }
+        }
+        return element;
+    };
+
+    // When rendering containers, re-enable drop on their content area
+    // (Patch renderCanvas if needed, or ensure createElement is always used)
+    // ... existing code ...
 }); 
