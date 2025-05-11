@@ -78,100 +78,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Element creation
-    function createElement(type) {
-        const element = document.createElement('div');
-        element.className = 'draggable';
-        element.draggable = true;
-        
-        let content = '';
-        switch(type) {
-            case 'heading':
-                content = '<h2>New Heading</h2>';
-                break;
-            case 'paragraph':
-                content = '<p>New paragraph text</p>';
-                break;
-            case 'button':
-                content = '<button class="btn">New Button</button>';
-                break;
-            case 'image':
-                content = '<img src="https://via.placeholder.com/300x200" alt="Placeholder image">';
-                break;
-            case 'divider':
-                content = '<hr>';
-                break;
-        }
-        
-        element.innerHTML = content;
-        
-        // Add remove button
-        const removeBtn = document.createElement('button');
-        removeBtn.className = 'remove-btn';
-        removeBtn.innerHTML = '<i class="fas fa-times"></i>';
-        removeBtn.onclick = () => {
-            element.remove();
-            if (canvas.children.length === 0) {
-                const newDropZone = document.createElement('div');
-                newDropZone.className = 'drop-zone';
-                newDropZone.innerHTML = '<p>Drag and drop elements here</p>';
-                canvas.appendChild(newDropZone);
-            }
-            propertiesContent.innerHTML = '<p class="no-selection">Select an element to edit its properties</p>';
-        };
-        
-        element.appendChild(removeBtn);
-        
-        // Make element draggable within canvas
-        element.addEventListener('dragstart', (e) => {
-            e.dataTransfer.setData('text/plain', 'move');
-            element.classList.add('dragging');
-        });
-        
-        element.addEventListener('dragend', () => {
-            element.classList.remove('dragging');
-        });
-        
-        // Element selection
-        element.addEventListener('click', (e) => {
-            if (e.target !== removeBtn && e.target !== removeBtn.querySelector('i')) {
-                document.querySelectorAll('.draggable').forEach(el => el.classList.remove('selected'));
-                element.classList.add('selected');
-                selectedElement = element;
-                updatePropertiesPanel(element);
-            }
-        });
-        
-        element.style.position = 'absolute';
-        element.style.left = '100px';
-        element.style.top = '100px';
-        
-        element.addEventListener('mousedown', function(e) {
-            if (e.target.classList.contains('resize-handle')) return; // skip if resizing
-            let shiftX = e.clientX - element.getBoundingClientRect().left;
-            let shiftY = e.clientY - element.getBoundingClientRect().top;
-
-            function moveAt(pageX, pageY) {
-                element.style.left = pageX - shiftX + 'px';
-                element.style.top = pageY - shiftY + 'px';
-            }
-
-            function onMouseMove(e) {
-                moveAt(e.pageX, e.pageY);
-            }
-
-            document.addEventListener('mousemove', onMouseMove);
-
-            document.onmouseup = function() {
-                document.removeEventListener('mousemove', onMouseMove);
-                document.onmouseup = null;
-            };
-        });
-        element.ondragstart = () => false;
-        
-        return element;
-    }
-
     // Properties panel update
     function updatePropertiesPanel(element) {
         const type = element.querySelector('h2, p, button, img, hr').tagName.toLowerCase();
@@ -648,66 +554,141 @@ document.addEventListener('DOMContentLoaded', () => {
         return el;
     }
 
-    // Modify createElement to add resize handle and snap logic
-    const originalCreateElement = createElement;
-    createElement = function(type) {
-        const element = originalCreateElement(type);
+    // Base element creation function
+    function createBaseElement(type) {
+        const element = document.createElement('div');
+        element.className = 'draggable';
+        element.draggable = true;
+        
+        let content = '';
+        switch(type) {
+            case 'heading':
+                content = '<h2>New Heading</h2>';
+                break;
+            case 'paragraph':
+                content = '<p>New paragraph text</p>';
+                break;
+            case 'button':
+                content = '<button class="btn">New Button</button>';
+                break;
+            case 'image':
+                content = '<img src="https://via.placeholder.com/300x200" alt="Placeholder image">';
+                break;
+            case 'divider':
+                content = '<hr>';
+                break;
+            case 'container':
+                content = '<div class="container-content"></div>';
+                element.style.minWidth = '200px';
+                element.style.minHeight = '200px';
+                element.style.backgroundColor = 'rgba(100,108,255,0.1)';
+                element.style.border = '1px dashed var(--accent-color)';
+                break;
+            case 'spacer':
+                content = '';
+                element.style.width = '100%';
+                element.style.height = '50px';
+                element.style.backgroundColor = 'transparent';
+                element.style.border = 'none';
+                break;
+        }
+        
+        element.innerHTML = content;
+        return element;
+    }
 
+    // Main createElement function with all features
+    function createElement(type) {
+        const element = createBaseElement(type);
+        
+        // Add remove button
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-btn';
+        removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+        removeBtn.onclick = () => {
+            element.remove();
+            if (canvas.children.length === 0) {
+                const newDropZone = document.createElement('div');
+                newDropZone.className = 'drop-zone';
+                newDropZone.innerHTML = '<p>Drag and drop elements here</p>';
+                canvas.appendChild(newDropZone);
+            }
+            propertiesContent.innerHTML = '<p class="no-selection">Select an element to edit its properties</p>';
+            saveToHistory();
+        };
+        
+        element.appendChild(removeBtn);
+        
         // Add resize handle
         const resizeHandle = document.createElement('div');
         resizeHandle.className = 'resize-handle';
         element.appendChild(resizeHandle);
-
-        // Snap-to-grid function (defined globally now)
-        // const gridSize = 32; // Must match CSS grid size
-        // const snap = (val) => Math.round(val / gridSize) * gridSize;
-
-        // Modify drag logic for snap-to-grid and data update
+        
+        // Make element draggable within canvas
+        element.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/plain', 'move');
+            element.classList.add('dragging');
+        });
+        
+        element.addEventListener('dragend', () => {
+            element.classList.remove('dragging');
+        });
+        
+        // Element selection
+        element.addEventListener('click', (e) => {
+            if (e.target !== removeBtn && e.target !== removeBtn.querySelector('i')) {
+                document.querySelectorAll('.draggable').forEach(el => el.classList.remove('selected'));
+                element.classList.add('selected');
+                selectedElement = element;
+                updatePropertiesPanel(element);
+            }
+        });
+        
+        // Position and drag handling
+        element.style.position = 'absolute';
+        element.style.left = '100px';
+        element.style.top = '100px';
+        
         element.addEventListener('mousedown', function(e) {
-            if (e.target.classList.contains('resize-handle')) return; // skip if resizing
-            if (!element.classList.contains('draggable')) return; // Only apply to draggable elements
+            if (e.target.classList.contains('resize-handle')) return;
+            if (!element.classList.contains('draggable')) return;
 
-            e.preventDefault(); // Prevent default drag behavior
+            e.preventDefault();
 
-            let shiftX = e.clientX - element.getBoundingClientRect().left;
-            let shiftY = e.clientY - element.getBoundingClientRect().top;
+            // Get initial mouse position and element position
+            const startX = e.clientX;
+            const startY = e.clientY;
+            const elementLeft = parseInt(element.style.left) || 0;
+            const elementTop = parseInt(element.style.top) || 0;
 
-            function moveAt(pageX, pageY) {
-                let newLeft = pageX - shiftX;
-                let newTop = pageY - shiftY;
+            function moveAt(e) {
+                // Calculate new position based on mouse movement
+                const newLeft = elementLeft + (e.clientX - startX);
+                const newTop = elementTop + (e.clientY - startY);
 
-                // Snap position to grid
+                // Apply snapped position
                 element.style.left = snap(newLeft) + 'px';
                 element.style.top = snap(newTop) + 'px';
             }
 
             function onMouseMove(e) {
-                moveAt(e.clientX, e.clientY);
+                moveAt(e);
+            }
+
+            function onMouseUp() {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+                saveToHistory();
             }
 
             document.addEventListener('mousemove', onMouseMove);
-
-            document.onmouseup = function() {
-                document.removeEventListener('mousemove', onMouseMove);
-                document.onmouseup = null;
-                // Store updated position in data
-                const page = pages[currentPageIdx];
-                const section = page.sections[currentSectionIdx];
-                const elData = section.elements.find(data => data.id === element.dataset.id); // Use data-id for lookup
-                if (elData) {
-                    elData.left = parseInt(element.style.left);
-                    elData.top = parseInt(element.style.top);
-                     // Trigger a re-render to ensure data is synced with canvas state visually
-                     // renderCanvas(); // Avoid re-rendering during drag
-                }
-            };
+            document.addEventListener('mouseup', onMouseUp);
         });
-        // element.ondragstart = () => false; // Prevent native drag - already done in createElementAndStore
 
-        // Add resize logic with snap-to-grid and data update
+        // Resize handling
         resizeHandle.addEventListener('mousedown', function(e) {
             e.stopPropagation();
-            e.preventDefault(); // Prevent default drag behavior
+            e.preventDefault();
 
             let startX = e.clientX;
             let startY = e.clientY;
@@ -718,37 +699,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 let newWidth = startWidth + e.clientX - startX;
                 let newHeight = startHeight + e.clientY - startY;
 
-                // Ensure minimum size and snap to grid
-                element.style.width = snap(Math.max(newWidth, gridSize)) + 'px'; // Minimum size is one grid unit
-                element.style.height = snap(Math.max(newHeight, gridSize)) + 'px'; // Minimum size is one grid unit
+                element.style.width = snap(Math.max(newWidth, gridSize)) + 'px';
+                element.style.height = snap(Math.max(newHeight, gridSize)) + 'px';
             }
 
             function stopDrag() {
                 document.removeEventListener('mousemove', doDrag);
                 document.removeEventListener('mouseup', stopDrag);
-                 // Store updated size in data
-                 const page = pages[currentPageIdx];
-                 const section = page.sections[currentSectionIdx];
-                 const elData = section.elements.find(data => data.id === element.dataset.id);
-                 if (elData) {
-                     elData.width = parseInt(element.style.width);
-                     elData.height = parseInt(element.style.height);
-                     // Trigger a re-render to ensure data is synced
-                     // renderCanvas(); // Avoid re-rendering during resize
-                 }
+                saveToHistory();
             }
 
             document.addEventListener('mousemove', doDrag);
             document.addEventListener('mouseup', stopDrag);
         });
 
-        // The unique ID is now assigned in createElementAndStore
-        // if (!element.dataset.id) {
-        //      element.dataset.id = Math.random().toString(36).substr(2, 9);
-        // }
-
+        element.ondragstart = () => false;
+        
+        // Save to history after creating the element
+        saveToHistory();
+        
         return element;
-    };
+    }
 
     // Override drop event listener to use createElementAndStore
     canvas.addEventListener('drop', (e) => {
@@ -762,31 +733,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Use createElementAndStore to create, store, and add to DOM
             createElementAndStore(elementType, { x: dropX, y: dropY });
-
-             // The element is added and data stored within createElementAndStore now
-             // const element = createElement(elementType);
-             // // Set initial position snapped to grid
-             // element.style.left = Math.round(dropX / gridSize) * gridSize + 'px';
-             // element.style.top = Math.round(dropY / gridSize) * gridSize + 'px';
-             // canvas.appendChild(element);
-
-             // // Store initial position and size in data (create element data here instead of createElementAndStore)
-             // const page = pages[currentPageIdx];
-             //  if (page.sections.length) {
-             //      const section = page.sections[currentSectionIdx];
-             //      const elData = {
-             //          type: elementType,
-             //          text: elementType === 'heading' ? 'New Heading' : elementType === 'paragraph' ? 'New paragraph text' : elementType === 'button' ? 'New Button' : '',
-             //          src: elementType === 'image' ? 'https://via.placeholder.com/300x200' : '',
-             //          left: parseInt(element.style.left),
-             //          top: parseInt(element.style.top),
-             //          width: parseInt(element.style.width || element.offsetWidth),
-             //          height: parseInt(element.style.height || element.offsetHeight),
-             //          color: undefined,
-             //          id: element.dataset.id // Store the generated ID
-             //      };
-             //      section.elements.push(elData);
-             //  }
         }
     });
 
@@ -963,4 +909,244 @@ document.addEventListener('DOMContentLoaded', () => {
      }
     renderSections();
     renderCanvas();
+
+    // History management for undo/redo
+    let history = [];
+    let currentHistoryIndex = -1;
+    const maxHistoryLength = 50;
+
+    function saveToHistory() {
+        // Remove any future states if we're not at the end
+        history = history.slice(0, currentHistoryIndex + 1);
+        
+        // Save current state
+        const state = {
+            pages: JSON.parse(JSON.stringify(pages)),
+            currentPageIdx,
+            currentSectionIdx
+        };
+        
+        history.push(state);
+        currentHistoryIndex++;
+        
+        // Limit history length
+        if (history.length > maxHistoryLength) {
+            history.shift();
+            currentHistoryIndex--;
+        }
+        
+        // Update undo/redo buttons
+        updateUndoRedoButtons();
+    }
+
+    function updateUndoRedoButtons() {
+        undoBtn.disabled = currentHistoryIndex <= 0;
+        redoBtn.disabled = currentHistoryIndex >= history.length - 1;
+    }
+
+    function undo() {
+        if (currentHistoryIndex > 0) {
+            currentHistoryIndex--;
+            const state = history[currentHistoryIndex];
+            pages = JSON.parse(JSON.stringify(state.pages));
+            currentPageIdx = state.currentPageIdx;
+            currentSectionIdx = state.currentSectionIdx;
+            renderPages();
+            renderSections();
+            renderCanvas();
+            updateUndoRedoButtons();
+        }
+    }
+
+    function redo() {
+        if (currentHistoryIndex < history.length - 1) {
+            currentHistoryIndex++;
+            const state = history[currentHistoryIndex];
+            pages = JSON.parse(JSON.stringify(state.pages));
+            currentPageIdx = state.currentPageIdx;
+            currentSectionIdx = state.currentSectionIdx;
+            renderPages();
+            renderSections();
+            renderCanvas();
+            updateUndoRedoButtons();
+        }
+    }
+
+    // Initialize undo/redo buttons
+    const undoBtn = document.getElementById('undoBtn');
+    const redoBtn = document.getElementById('redoBtn');
+    undoBtn.addEventListener('click', undo);
+    redoBtn.addEventListener('click', redo);
+
+    // Canvas size controls
+    const canvasWidth = document.getElementById('canvasWidth');
+    const canvasHeight = document.getElementById('canvasHeight');
+    const canvasWidthDisplay = canvasWidth.nextElementSibling;
+    const canvasHeightDisplay = canvasHeight.nextElementSibling;
+
+    canvasWidth.addEventListener('input', (e) => {
+        const width = e.target.value;
+        canvas.style.width = width + 'px';
+        canvasWidthDisplay.textContent = width + 'px';
+    });
+
+    canvasHeight.addEventListener('input', (e) => {
+        const height = e.target.value;
+        canvas.style.height = height + 'px';
+        canvasHeightDisplay.textContent = height + 'px';
+    });
+
+    // Element duplication
+    const duplicateElementBtn = document.getElementById('duplicateElementBtn');
+    duplicateElementBtn.addEventListener('click', () => {
+        if (!selectedElement) return;
+        
+        const page = pages[currentPageIdx];
+        const section = page.sections[currentSectionIdx];
+        const elData = section.elements.find(data => data.id === selectedElement.dataset.id);
+        
+        if (elData) {
+            const newElData = JSON.parse(JSON.stringify(elData));
+            newElData.id = Math.random().toString(36).substr(2, 9);
+            newElData.left += 20;
+            newElData.top += 20;
+            section.elements.push(newElData);
+            saveToHistory();
+            renderCanvas();
+        }
+    });
+
+    // Save element to library
+    const saveElementBtn = document.getElementById('saveElementBtn');
+    const savedElementsList = document.querySelector('.saved-elements-list');
+    let savedElements = JSON.parse(localStorage.getItem('savedElements') || '[]');
+
+    function renderSavedElements() {
+        savedElementsList.innerHTML = '';
+        savedElements.forEach((el, index) => {
+            const div = document.createElement('div');
+            div.className = 'element saved-element';
+            div.draggable = true;
+            div.innerHTML = `
+                <i class="fas fa-${getElementIcon(el.type)}"></i>
+                <span>${el.name || el.type}</span>
+                <button class="remove-saved" data-index="${index}">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            div.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', JSON.stringify(el));
+            });
+            savedElementsList.appendChild(div);
+        });
+    }
+
+    function getElementIcon(type) {
+        const icons = {
+            heading: 'heading',
+            paragraph: 'paragraph',
+            button: 'square',
+            image: 'image',
+            divider: 'minus',
+            container: 'box',
+            spacer: 'arrows-alt-v'
+        };
+        return icons[type] || 'code';
+    }
+
+    saveElementBtn.addEventListener('click', () => {
+        if (!selectedElement) return;
+        
+        const page = pages[currentPageIdx];
+        const section = page.sections[currentSectionIdx];
+        const elData = section.elements.find(data => data.id === selectedElement.dataset.id);
+        
+        if (elData) {
+            const name = prompt('Enter a name for this element:', elData.type);
+            if (name) {
+                const savedEl = {
+                    ...JSON.parse(JSON.stringify(elData)),
+                    name
+                };
+                savedElements.push(savedEl);
+                localStorage.setItem('savedElements', JSON.stringify(savedElements));
+                renderSavedElements();
+            }
+        }
+    });
+
+    // Handle saved element removal
+    savedElementsList.addEventListener('click', (e) => {
+        if (e.target.closest('.remove-saved')) {
+            const index = e.target.closest('.remove-saved').dataset.index;
+            savedElements.splice(index, 1);
+            localStorage.setItem('savedElements', JSON.stringify(savedElements));
+            renderSavedElements();
+        }
+    });
+
+    // Initialize saved elements
+    renderSavedElements();
+
+    // Modify drop handler to handle saved elements
+    canvas.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const data = e.dataTransfer.getData('text/plain');
+        try {
+            const savedElement = JSON.parse(data);
+            if (savedElement.type) {
+                // Handle saved element drop
+                const canvasRect = canvas.getBoundingClientRect();
+                const dropX = e.clientX - canvasRect.left;
+                const dropY = e.clientY - canvasRect.top;
+                
+                const page = pages[currentPageIdx];
+                const section = page.sections[currentSectionIdx];
+                
+                const newElData = {
+                    ...savedElement,
+                    id: Math.random().toString(36).substr(2, 9),
+                    left: snap(dropX),
+                    top: snap(dropY)
+                };
+                
+                section.elements.push(newElData);
+                saveToHistory();
+                renderCanvas();
+            }
+        } catch {
+            // Handle regular element drop
+            const elementType = data;
+            if (elementType) {
+                const canvasRect = canvas.getBoundingClientRect();
+                const dropX = e.clientX - canvasRect.left;
+                const dropY = e.clientY - canvasRect.top;
+                createElementAndStore(elementType, { x: dropX, y: dropY });
+                saveToHistory();
+            }
+        }
+    });
+
+    // Add saveToHistory calls to all state-changing operations
+    const originalAddSection = addSectionBtn.onclick;
+    addSectionBtn.onclick = () => {
+        originalAddSection();
+        saveToHistory();
+    };
+
+    const originalAddPage = addPageBtn.onclick;
+    addPageBtn.onclick = () => {
+        originalAddPage();
+        saveToHistory();
+    };
+
+    // Modify element removal to save history
+    const originalRemoveElement = removeBtn.onclick;
+    removeBtn.onclick = () => {
+        originalRemoveElement();
+        saveToHistory();
+    };
+
+    // Initialize history
+    saveToHistory();
 }); 

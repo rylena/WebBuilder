@@ -11,22 +11,32 @@
     <div class="topbar">
         <div class="logo"><i class="fas fa-code"></i> WebBuilder</div>
         <div class="project-actions">
+            <button id="undoBtn" class="btn" title="Undo"><i class="fas fa-undo"></i></button>
+            <button id="redoBtn" class="btn" title="Redo"><i class="fas fa-redo"></i></button>
             <button id="newProjectBtn" class="btn"><i class="fas fa-file"></i> New Project</button>
             <button id="openTemplateBtn" class="btn"><i class="fas fa-folder-open"></i> Open Template</button>
-                <button id="previewBtn" class="btn"><i class="fas fa-eye"></i> Preview</button>
-                <button id="exportBtn" class="btn primary"><i class="fas fa-download"></i> Export HTML</button>
-            </div>
+            <button id="previewBtn" class="btn"><i class="fas fa-eye"></i> Preview</button>
+            <button id="exportBtn" class="btn primary"><i class="fas fa-download"></i> Export HTML</button>
+        </div>
     </div>
     <div class="main-layout">
         <aside class="sidebar">
-                <h2>Elements</h2>
-                <div class="elements-list">
+            <h2>Elements</h2>
+            <div class="elements-list">
                 <div class="element" draggable="true" data-type="heading"><i class="fas fa-heading"></i> Heading</div>
                 <div class="element" draggable="true" data-type="paragraph"><i class="fas fa-paragraph"></i> Paragraph</div>
                 <div class="element" draggable="true" data-type="button"><i class="fas fa-square"></i> Button</div>
                 <div class="element" draggable="true" data-type="image"><i class="fas fa-image"></i> Image</div>
                 <div class="element" draggable="true" data-type="divider"><i class="fas fa-minus"></i> Divider</div>
-                    </div>
+                <div class="element" draggable="true" data-type="container"><i class="fas fa-box"></i> Container</div>
+                <div class="element" draggable="true" data-type="spacer"><i class="fas fa-arrows-alt-v"></i> Spacer</div>
+            </div>
+            <div class="sidebar-section">
+                <h2>Saved Elements</h2>
+                <div class="saved-elements-list">
+                    <!-- Saved elements will be added here -->
+                </div>
+            </div>
         </aside>
         <div class="center-area">
             <nav class="section-nav">
@@ -35,16 +45,16 @@
                 <div class="page-nav">
                     <button class="add-page-btn"><i class="fas fa-plus"></i> Add Page</button>
                     <div class="pages-list"><!-- Page tabs will go here --></div>
-                    </div>
-                <div class="responsive-toggle">
-                    <button class="view-desktop active"><i class="fas fa-desktop"></i></button>
-                    <button class="view-tablet"><i class="fas fa-tablet-alt"></i></button>
-                    <button class="view-mobile"><i class="fas fa-mobile-alt"></i></button>
                 </div>
-                <button class="toggle-grid"><i class="fas fa-th"></i> Grid</button>
+                <div class="responsive-toggle">
+                    <button class="view-desktop active" title="Desktop View"><i class="fas fa-desktop"></i></button>
+                    <button class="view-tablet" title="Tablet View"><i class="fas fa-tablet-alt"></i></button>
+                    <button class="view-mobile" title="Mobile View"><i class="fas fa-mobile-alt"></i></button>
+                </div>
+                <button class="toggle-grid" title="Toggle Grid"><i class="fas fa-th"></i> Grid</button>
             </nav>
             <main class="canvas-wrapper">
-            <div class="canvas" id="canvas">
+                <div class="canvas" id="canvas">
                     <div class="drop-zone"><p>Drag and drop elements here</p></div>
                 </div>
             </main>
@@ -55,22 +65,50 @@
                 <label>Background Color:</label>
                 <input type="color" id="backgroundColorPicker" value="#1a1a1a">
             </div>
-                <div id="propertiesContent">
-                    <p class="no-selection">Select an element to edit its properties</p>
-                </div>
+            <div class="property">
+                <label>Canvas Width:</label>
+                <input type="range" id="canvasWidth" min="320" max="1920" value="1200" step="10">
+                <span class="value-display">1200px</span>
+            </div>
+            <div class="property">
+                <label>Canvas Height:</label>
+                <input type="range" id="canvasHeight" min="400" max="2000" value="800" step="10">
+                <span class="value-display">800px</span>
+            </div>
+            <div id="propertiesContent">
+                <p class="no-selection">Select an element to edit its properties</p>
+            </div>
+            <div class="property-actions">
+                <button id="saveElementBtn" class="btn" title="Save Element"><i class="fas fa-save"></i> Save Element</button>
+                <button id="duplicateElementBtn" class="btn" title="Duplicate Element"><i class="fas fa-copy"></i> Duplicate</button>
+            </div>
         </aside>
     </div>
-    <!-- Template Modal and Export Modal remain unchanged -->
     <div id="templateModal" class="modal">
         <div class="modal-content">
             <span class="close" id="closeTemplateModal">&times;</span>
             <h2>Select a Template</h2>
             <div class="template-list">
-                <button class="template-btn" data-template="0">Template 1</button>
-                <button class="template-btn" data-template="1">Template 2</button>
-                <button class="template-btn" data-template="2">Template 3</button>
-                <button class="template-btn" data-template="3">Template 4</button>
-                <button class="template-btn" data-template="4">Template 5</button>
+                <button class="template-btn" data-template="0">
+                    <h3>Simple Landing</h3>
+                    <p>A clean, modern landing page template</p>
+                </button>
+                <button class="template-btn" data-template="1">
+                    <h3>Blog Layout</h3>
+                    <p>Perfect for content-heavy websites</p>
+                </button>
+                <button class="template-btn" data-template="2">
+                    <h3>Portfolio</h3>
+                    <p>Showcase your work in style</p>
+                </button>
+                <button class="template-btn" data-template="3">
+                    <h3>Business Card</h3>
+                    <p>Professional business information layout</p>
+                </button>
+                <button class="template-btn" data-template="4">
+                    <h3>About Page</h3>
+                    <p>Tell your story effectively</p>
+                </button>
             </div>
         </div>
     </div>
@@ -78,6 +116,11 @@
         <div class="modal-content">
             <span class="close">&times;</span>
             <h2>Generated HTML Code</h2>
+            <div class="export-options">
+                <button class="btn" data-format="html">HTML</button>
+                <button class="btn" data-format="css">CSS</button>
+                <button class="btn" data-format="js">JavaScript</button>
+            </div>
             <pre><code id="generatedCode"></code></pre>
             <button id="copyCode" class="btn primary">Copy Code</button>
         </div>

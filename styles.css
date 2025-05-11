@@ -5,10 +5,13 @@
     --text-primary: #fff;
     --text-secondary: #b3b3b3;
     --accent-color: #646cff;
+    --accent-hover: #7b82ff;
     --border-color: #404040;
     --canvas-bg: #222326;
     --canvas-border: #333;
     --shadow: 0 2px 16px rgba(0,0,0,0.12);
+    --shadow-lg: 0 4px 24px rgba(0,0,0,0.16);
+    --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 * {
@@ -73,19 +76,26 @@ body {
 .element {
     padding: 0.75rem 1rem;
     background: var(--bg-tertiary);
-    border-radius: 6px;
+    border-radius: 8px;
     cursor: grab;
     display: flex;
     align-items: center;
     gap: 0.7rem;
     font-size: 1.05rem;
     border: 1px solid transparent;
-    transition: background 0.2s, border 0.2s;
+    transition: var(--transition);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 .element:hover {
     background: var(--accent-color);
     color: #fff;
     border: 1px solid var(--accent-color);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(100,108,255,0.2);
+}
+.element:active {
+    cursor: grabbing;
+    transform: translateY(0);
 }
 
 .center-area {
@@ -156,21 +166,34 @@ body {
     margin: 2rem auto;
     background: #191b1e;
     border: 2px dashed var(--canvas-border);
-    border-radius: 12px;
+    border-radius: 16px;
     min-width: 900px;
     min-height: 600px;
     max-width: 1200px;
-    box-shadow: var(--shadow);
+    box-shadow: var(--shadow-lg);
     overflow: visible;
+    transition: var(--transition);
+}
+.canvas.grid-enabled {
+    background-image: 
+        linear-gradient(to right, rgba(100,108,255,0.08) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(100,108,255,0.08) 1px, transparent 1px);
+    background-size: 32px 32px;
 }
 .drop-zone {
     min-height: 200px;
     border: 2px dashed var(--border-color);
-    border-radius: 8px;
+    border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
     color: var(--text-secondary);
+    transition: var(--transition);
+    background: rgba(100,108,255,0.05);
+}
+.drop-zone:hover {
+    border-color: var(--accent-color);
+    background: rgba(100,108,255,0.1);
 }
 
 .properties-panel {
@@ -226,7 +249,7 @@ body {
 .btn {
     padding: 0.5rem 1.1rem;
     border: none;
-    border-radius: 4px;
+    border-radius: 6px;
     background: var(--bg-tertiary);
     color: var(--text-primary);
     cursor: pointer;
@@ -234,11 +257,17 @@ body {
     align-items: center;
     gap: 0.5rem;
     font-size: 1rem;
-    transition: background 0.3s;
+    transition: var(--transition);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 .btn:hover {
-    background: var(--accent-color);
+    background: var(--accent-hover);
     color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(100,108,255,0.2);
+}
+.btn:active {
+    transform: translateY(0);
 }
 .btn.primary {
     background: var(--accent-color);
@@ -250,36 +279,67 @@ body {
     margin: 0.5rem 0;
     padding: 1rem;
     background: var(--bg-tertiary);
-    border-radius: 6px;
+    border-radius: 8px;
     cursor: move;
     position: absolute;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: var(--transition);
     min-width: 60px;
     min-height: 40px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    box-shadow: var(--shadow);
     border: 1.5px solid transparent;
+    backdrop-filter: blur(8px);
 }
 .draggable.selected {
     outline: 2px solid var(--accent-color);
-    box-shadow: 0 0 0 2px var(--accent-color);
+    box-shadow: 0 0 0 2px var(--accent-color), var(--shadow-lg);
     z-index: 10;
+    transform: scale(1.01);
+}
+.draggable:hover {
+    box-shadow: var(--shadow-lg);
 }
 .draggable .remove-btn {
     position: absolute;
     top: 0.5rem;
     right: 0.5rem;
-    background: none;
+    background: rgba(0,0,0,0.2);
     border: none;
     color: var(--text-secondary);
     cursor: pointer;
     opacity: 0;
-    transition: opacity 0.3s;
+    transition: var(--transition);
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 .draggable:hover .remove-btn {
     opacity: 1;
 }
 .draggable .remove-btn:hover {
+    background: rgba(255,68,68,0.2);
     color: #ff4444;
+}
+.resize-handle {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 12px;
+    height: 12px;
+    background: var(--accent-color);
+    border-radius: 2px;
+    cursor: nwse-resize;
+    opacity: 0;
+    transition: var(--transition);
+}
+.draggable:hover .resize-handle {
+    opacity: 0.5;
+}
+.draggable:hover .resize-handle:hover {
+    opacity: 1;
+    transform: scale(1.2);
 }
 
 /* Modal Styles */
@@ -350,18 +410,6 @@ code {
 .template-btn:hover {
     background: var(--accent-color);
     color: #fff;
-}
-
-/* Grid Overlay */
-.canvas.grid-enabled::before {
-    content: "";
-    position: absolute;
-    left: 0; top: 0; right: 0; bottom: 0;
-    pointer-events: none;
-    background-image: linear-gradient(to right, rgba(100,108,255,0.08) 1px, transparent 1px),
-                      linear-gradient(to bottom, rgba(100,108,255,0.08) 1px, transparent 1px);
-    background-size: 32px 32px;
-    z-index: 1;
 }
 
 @media (max-width: 1200px) {
