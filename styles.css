@@ -368,7 +368,7 @@ body {
 }
 
 .draggable h2, .draggable p, .draggable button, .draggable label, .draggable span {
-    color: #111 !important;
+    color: #111;
 }
 
 /* Modal Styles */

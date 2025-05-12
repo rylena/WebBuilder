@@ -9,20 +9,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const propertiesContent = document.getElementById('propertiesContent');
     let selectedElement = null;
 
-    // Background color picker logic
     const backgroundColorPicker = document.getElementById('backgroundColorPicker');
     if (backgroundColorPicker) {
-        // Set initial canvas background color
         canvas.style.backgroundColor = '#ffffff';
         
         backgroundColorPicker.addEventListener('input', (e) => {
+            // Update canvas background in builder
             canvas.style.backgroundColor = e.target.value;
-            // Update the stored background color in the current section
+            
+            // Update background color in the generated website
             const page = pages[currentPageIdx];
             if (page.sections.length) {
                 const section = page.sections[currentSectionIdx];
                 section.backgroundColor = e.target.value;
             }
+            
+            // Add background color to generated HTML
+            const styleTag = document.createElement('style');
+            styleTag.textContent = `
+                body {
+                    background-color: ${e.target.value};
+                }
+            `;
+            document.head.appendChild(styleTag);
         });
     }
 
@@ -92,17 +101,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const type = element.querySelector('h2, p, button, img, hr').tagName.toLowerCase();
         let propertiesHTML = '';
         
-        // Common color properties
+        // Get the first text element inside the draggable
+        const textEl = element.querySelector('h1, h2, h3, h4, h5, h6, p, button, label, span');
+        const textColor = textEl ? getComputedStyle(textEl).color : '#111';
         const colorProperties = `
             <div class="property">
                 <label>Text Color:</label>
-                <input type="color" value="${getComputedStyle(element).color}" 
+                <input type="color" value="${rgbToHex(textColor)}" 
                        onchange="updateElement(this.value, 'textColor')">
-            </div>
-            <div class="property">
-                <label>Background Color:</label>
-                <input type="color" value="${getComputedStyle(element).backgroundColor}" 
-                       onchange="updateElement(this.value, 'backgroundColor')">
             </div>`;
         
         switch(type) {
@@ -182,12 +188,19 @@ document.addEventListener('DOMContentLoaded', () => {
     window.updateElement = function(value, property) {
         if (!selectedElement) return;
 
-        // For text color, apply to all text elements inside selectedElement
-        // For background/border color, apply to the .draggable container
+        // Get the current page and section
+        const page = pages[currentPageIdx];
+        const section = page.sections[currentSectionIdx];
+        const elData = section.elements.find(data => data.id === selectedElement.dataset.id);
+        if (!elData) return;
+
         switch(property) {
             case 'text': {
-                const textEl = selectedElement.querySelector('h2, p, button, img, hr');
-                if (textEl) textEl.textContent = value;
+                const textEl = selectedElement.querySelector('h2, p, button');
+                if (textEl) {
+                    textEl.textContent = value;
+                    elData.text = value;
+                }
                 break;
             }
             case 'size': {
@@ -202,43 +215,64 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             case 'style': {
                 const btnEl = selectedElement.querySelector('button');
-                if (btnEl) btnEl.className = value;
+                if (btnEl) {
+                    btnEl.className = value;
+                    elData.style = value;
+                }
                 break;
             }
             case 'src': {
                 const imgEl = selectedElement.querySelector('img');
-                if (imgEl) imgEl.src = value;
+                if (imgEl) {
+                    imgEl.src = value;
+                    elData.src = value;
+                }
                 updatePropertiesPanel(selectedElement);
                 break;
             }
             case 'alt': {
                 const imgEl = selectedElement.querySelector('img');
-                if (imgEl) imgEl.alt = value;
+                if (imgEl) {
+                    imgEl.alt = value;
+                    elData.alt = value;
+                }
                 break;
             }
             case 'textColor': {
-                // Apply to all text elements inside selectedElement
                 const textEls = selectedElement.querySelectorAll('h1, h2, h3, h4, h5, h6, p, button, label, span');
-                textEls.forEach(el => el.style.color = value);
-                break;
+                textEls.forEach(el => {
+                    el.style.color = value;
+                    el.setAttribute('data-applied-color', value); // optional: for easier debugging
+                });
+                
+                // Update the data model
+                const page = pages[currentPageIdx];
+                const section = page.sections[currentSectionIdx];
+                const elData = section.elements.find(data => data.id === selectedElement.dataset.id);
+                if (elData) {
+                    elData.color = value;
+                }
+                
+                // Force re-render to reflect in builder
+                renderCanvas();
+                
             }
             case 'backgroundColor': {
-                // Apply to the draggable container
                 selectedElement.style.backgroundColor = value;
+                elData.backgroundColor = value;
                 break;
             }
             case 'borderColor': {
-                // Apply to the draggable container
                 selectedElement.style.borderColor = value;
-                // If inner is HR, also apply to HR
+                elData.borderColor = value;
                 const hrEl = selectedElement.querySelector('hr');
                 if (hrEl) hrEl.style.borderColor = value;
-                // If inner is IMG, also apply to IMG
                 const imgEl = selectedElement.querySelector('img');
                 if (imgEl) imgEl.style.borderColor = value;
                 break;
             }
         }
+        saveToHistory();
     };
 
     // Export HTML
@@ -264,25 +298,65 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Generate HTML
     function generateHTML() {
-        const elements = canvas.querySelectorAll('.draggable');
-        let html = '<!DOCTYPE html>\n<html>\n<head>\n\t<title>Generated Website</title>\n\t<style>\n\t\tbody { font-family: Arial, sans-serif; }\n\t\t.btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }\n\t\t.btn.primary { background-color: #646cff; color: white; }\n';
-        
+        const page = pages[currentPageIdx];
+        let bgColor = "#ffffff";
+        let section = null;
+        let canvasWidth = 1200;
+        let canvasHeight = 800;
+        if (page.sections.length) {
+            section = page.sections[currentSectionIdx];
+            if (section.backgroundColor) bgColor = section.backgroundColor;
+            if (section.width) canvasWidth = section.width;
+            if (section.height) canvasHeight = section.height;
+        }
+        let html = `<!DOCTYPE html>
+<html>
+<head>
+    <title>Generated Website</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: ${bgColor}; margin: 0; }
+        .canvas-export {
+            position: relative;
+            margin: 40px auto;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            width: ${canvasWidth}px;
+            height: ${canvasHeight}px;
+            min-width: 300px;
+            min-height: 200px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            overflow: visible;
+            color: #111;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+        }
+        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+        .btn.primary { background-color: #646cff; color: white; }
+`;
+
         // Add custom styles for each element
+        const elements = canvas.querySelectorAll('.draggable');
         elements.forEach((element, index) => {
             const innerElement = element.querySelector('h2, p, button, img, hr');
             if (innerElement) {
-                html += `\t\t.element-${index} {`;
-                if (innerElement.style.color) html += `\n\t\t\tcolor: ${innerElement.style.color};`;
-                if (innerElement.style.backgroundColor) html += `\n\t\t\tbackground-color: ${innerElement.style.backgroundColor};`;
-                if (innerElement.style.borderColor) html += `\n\t\t\tborder-color: ${innerElement.style.borderColor};`;
-                html += '\n\t\t}\n';
+                html += `        .element-${index} {`;
+                if (innerElement.style.color) html += `\n            color: ${innerElement.style.color};`;
+                if (innerElement.style.backgroundColor) html += `\n            background-color: ${innerElement.style.backgroundColor};`;
+                if (innerElement.style.borderColor) html += `\n            border-color: ${innerElement.style.borderColor};`;
+                // Use stored fontSize if available
+                const elData = section.elements.find(data => data.id === element.dataset.id);
+                if (elData && elData.fontSize) html += `\n            font-size: ${elData.fontSize};`;
+                html += '\n        }\n';
             }
         });
-        
-        html += '\t</style>\n</head>\n<body>\n';
-        
+
+        html += '    </style>\n</head>\n<body>\n';
+        html += `<div class="canvas-export">\n`;
+
         elements.forEach((element, index) => {
             const content = element.innerHTML.replace(/<button class="remove-btn">.*?<\/button>/s, '');
             const innerElement = element.querySelector('h2, p, button, img, hr');
@@ -295,11 +369,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const height = element.style.height || element.offsetHeight + 'px';
                 // Inline style for absolute positioning
                 const style = `position:absolute;left:${left};top:${top};width:${width};height:${height};`;
-                html += `\t<${tagName} style="${style}">${innerElement.innerHTML}</${tagName}>\n`;
+                html += `    <${tagName} class="element-${index}" style="${style}">${innerElement.innerHTML}</${tagName}>\n`;
             }
         });
-        
-        html += '</body>\n</html>';
+
+        html += '</div>\n</body>\n</html>';
         return html;
     }
 
@@ -318,16 +392,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeTemplateModal = document.getElementById('closeTemplateModal');
     const templateBtns = document.querySelectorAll('.template-btn');
 
-    // 5 template data objects
     const templates = [
-        // Template 1: Simple Landing
         [
             {type: 'heading', text: 'Welcome to Lorem Ipsum', left: 200, top: 80, width: 400, height: 60, color: '#fff'},
             {type: 'paragraph', text: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque euismod.', left: 200, top: 160, width: 400, height: 60, color: '#ccc'},
             {type: 'button', text: 'Get Started', left: 200, top: 240, width: 180, height: 50},
             {type: 'image', src: 'https://via.placeholder.com/300x200', left: 650, top: 120, width: 300, height: 200}
         ],
-        // Template 2: Blog
         [
             {type: 'heading', text: 'Blog Title', left: 100, top: 60, width: 300, height: 50, color: '#fff'},
             {type: 'paragraph', text: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.', left: 100, top: 130, width: 500, height: 50, color: '#ccc'},
@@ -335,21 +406,18 @@ document.addEventListener('DOMContentLoaded', () => {
             {type: 'heading', text: 'Post 1', left: 100, top: 220, width: 200, height: 40, color: '#fff'},
             {type: 'paragraph', text: 'Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.', left: 100, top: 270, width: 500, height: 50, color: '#ccc'}
         ],
-        // Template 3: Portfolio
         [
             {type: 'heading', text: 'Jane Doe', left: 350, top: 60, width: 300, height: 50, color: '#fff'},
             {type: 'paragraph', text: 'Web Designer & Developer', left: 350, top: 120, width: 300, height: 40, color: '#ccc'},
             {type: 'image', src: 'https://via.placeholder.com/200x200', left: 100, top: 100, width: 200, height: 200},
             {type: 'button', text: 'Contact Me', left: 350, top: 180, width: 180, height: 50}
         ],
-        // Template 4: Business Card
         [
             {type: 'heading', text: 'ACME Corp.', left: 250, top: 100, width: 300, height: 50, color: '#fff'},
             {type: 'paragraph', text: 'Innovating the future. Lorem ipsum dolor sit amet.', left: 250, top: 160, width: 300, height: 40, color: '#ccc'},
             {type: 'button', text: 'Learn More', left: 250, top: 220, width: 180, height: 50},
             {type: 'divider', left: 250, top: 290, width: 300, height: 2}
         ],
-        // Template 5: Simple About
         [
             {type: 'heading', text: 'About Us', left: 200, top: 80, width: 400, height: 60, color: '#fff'},
             {type: 'paragraph', text: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus lacinia odio vitae.', left: 200, top: 160, width: 400, height: 60, color: '#ccc'},
@@ -537,7 +605,10 @@ document.addEventListener('DOMContentLoaded', () => {
             el.style.width = elData.width + 'px';
             el.style.height = elData.height + 'px';
             // Set color from stored data
-            if (elData.color) el.querySelector('h2, p, button, hr').style.color = elData.color;
+            if (elData.color) {
+                const textEls = el.querySelectorAll('h1, h2, h3, h4, h5, h6, p, button, label, span');
+                textEls.forEach(elm => elm.style.color = elData.color);
+            }
             if (elData.backgroundColor) el.style.backgroundColor = elData.backgroundColor;
             if (elData.borderColor) el.style.borderColor = elData.borderColor;
             el.dataset.id = elData.id;
@@ -592,7 +663,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const element = document.createElement('div');
         element.className = 'draggable';
         element.draggable = true;
-        
         let content = '';
         switch(type) {
             case 'heading':
@@ -601,31 +671,25 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'paragraph':
                 content = '<p>New paragraph text</p>';
                 break;
-            case 'button':
-                content = '<button class="btn">New Button</button>';
+            case 'rectangle':
+                content = '<div style="width:100%;height:100%;background:#646cff;border-radius:0;"></div>';
+                break;
+            case 'circle':
+                content = '<div style="width:100%;height:100%;background:#646cff;border-radius:50%;"></div>';
+                break;
+            case 'rounded-rectangle':
+                content = '<div style="width:100%;height:100%;background:#646cff;border-radius:24px;"></div>';
+                break;
+            case 'triangle':
+                content = `<svg width="100%" height="100%" viewBox="0 0 100 100"><polygon points="50,0 100,100 0,100" style="fill:#646cff;" /></svg>`;
+                break;
+            case 'curve':
+                content = `<svg width="100%" height="100%" viewBox="0 0 100 100"><path d="M0,100 Q50,0 100,100" stroke="#646cff" stroke-width="8" fill="none"/></svg>`;
                 break;
             case 'image':
                 content = '<img src="https://via.placeholder.com/300x200" alt="Placeholder image">';
                 break;
-            case 'divider':
-                content = '<hr>';
-                break;
-            case 'container':
-                content = '<div class="container-content"></div>';
-                element.style.minWidth = '200px';
-                element.style.minHeight = '200px';
-                element.style.backgroundColor = 'rgba(100,108,255,0.1)';
-                element.style.border = '1px dashed var(--accent-color)';
-                break;
-            case 'spacer':
-                content = '';
-                element.style.width = '100%';
-                element.style.height = '50px';
-                element.style.backgroundColor = 'transparent';
-                element.style.border = 'none';
-                break;
         }
-        
         element.innerHTML = content;
         return element;
     }
@@ -738,8 +802,43 @@ document.addEventListener('DOMContentLoaded', () => {
                         let newWidth = startWidth + e.clientX - startX;
                         let newHeight = startHeight + e.clientY - startY;
 
-                        element.style.width = snap(Math.max(newWidth, gridSize)) + 'px';
-                        element.style.height = snap(Math.max(newHeight, gridSize)) + 'px';
+                        // Ensure minimum size
+                        newWidth = Math.max(newWidth, gridSize);
+                        newHeight = Math.max(newHeight, gridSize);
+
+                        // Snap to grid
+                        newWidth = snap(newWidth);
+                        newHeight = snap(newHeight);
+
+                        // Update element size
+                        element.style.width = newWidth + 'px';
+                        element.style.height = newHeight + 'px';
+
+                        // Update inner content size
+                        const innerElement = element.querySelector('h2, p, button');
+                        if (innerElement) {
+                            // Set font-size proportional to height (e.g., 50% of height)
+                            const fontSize = Math.max(12, Math.floor(newHeight * 0.5)); // Minimum 12px
+                            innerElement.style.fontSize = fontSize + 'px';
+                            innerElement.style.width = '100%';
+                            innerElement.style.height = '100%';
+                            // Store font size in data for export
+                            const page = pages[currentPageIdx];
+                            const section = page.sections[currentSectionIdx];
+                            const elData = section.elements.find(data => data.id === element.dataset.id);
+                            if (elData) {
+                                elData.fontSize = fontSize + 'px';
+                            }
+                        }
+
+                        // Update stored data
+                        const page = pages[currentPageIdx];
+                        const section = page.sections[currentSectionIdx];
+                        const elData = section.elements.find(data => data.id === element.dataset.id);
+                        if (elData) {
+                            elData.width = newWidth;
+                            elData.height = newHeight;
+                        }
                     }
 
                     function stopDrag() {
@@ -811,7 +910,10 @@ document.addEventListener('DOMContentLoaded', () => {
              el.style.width = elData.width + 'px';
              el.style.height = elData.height + 'px';
              // Set color from stored data
-             if (elData.color) el.querySelector('h2, p, button, hr').style.color = elData.color; // Apply color to relevant inner elements
+             if (elData.color) {
+                 const textEls = el.querySelectorAll('h1, h2, h3, h4, h5, h6, p, button, label, span');
+                 textEls.forEach(elm => elm.style.color = elData.color);
+             }
              if (elData.backgroundColor) el.style.backgroundColor = elData.backgroundColor; // Apply background color to the element container
              if (elData.borderColor) el.style.borderColor = elData.borderColor; // Apply border color
              el.dataset.id = elData.id; // Set data-id for lookup
@@ -1027,11 +1129,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const icons = {
             heading: 'heading',
             paragraph: 'paragraph',
-            button: 'square',
+            rectangle: 'square-full',
+            circle: 'circle',
+            'rounded-rectangle': 'square',
+            triangle: 'play',
+            curve: 'wave-square',
             image: 'image',
-            divider: 'minus',
-            container: 'box',
-            spacer: 'arrows-alt-v'
         };
         return icons[type] || 'code';
     }
@@ -1189,3 +1292,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // (Patch renderCanvas if needed, or ensure createElement is always used)
     // ... existing code ...
 }); 
+
+function rgbToHex(rgb) {
+    if (!rgb) return '#111111';
+    const result = rgb.match(/\d+/g);
+    if (!result) return '#111111';
+    return (
+        '#' +
+        result
+            .slice(0, 3)
+            .map(x => ('0' + parseInt(x).toString(16)).slice(-2))
+            .join('')
+    );
+} 
