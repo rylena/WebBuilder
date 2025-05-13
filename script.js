@@ -302,42 +302,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const page = pages[currentPageIdx];
         let bgColor = "#ffffff";
         let section = null;
-        let canvasWidth = 1200;
-        let canvasHeight = 800;
         if (page.sections.length) {
             section = page.sections[currentSectionIdx];
             if (section.backgroundColor) bgColor = section.backgroundColor;
-            if (section.width) canvasWidth = section.width;
-            if (section.height) canvasHeight = section.height;
         }
+        
         let html = `<!DOCTYPE html>
-<html>
-<head>
-    <title>Generated Website</title>
-    <style>
-        body { font-family: Arial, sans-serif; background-color: ${bgColor}; margin: 0; }
-        .canvas-export {
-            position: relative;
-            margin: 40px auto;
-            background: #fff;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            width: ${canvasWidth}px;
-            height: ${canvasHeight}px;
-            min-width: 300px;
-            min-height: 200px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            overflow: visible;
-            color: #111;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-start;
-        }
-        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
-        .btn.primary { background-color: #646cff; color: white; }
-`;
-
+    <html>
+    <head>
+        <title>Generated Website</title>
+        <style>
+            body { 
+                font-family: Arial, sans-serif; 
+                background-color: ${bgColor}; 
+                margin: 0;
+                padding: 0;
+            }
+    `;
+    
         // Add custom styles for each element
         const elements = canvas.querySelectorAll('.draggable');
         elements.forEach((element, index) => {
@@ -353,10 +335,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 html += '\n        }\n';
             }
         });
-
+    
         html += '    </style>\n</head>\n<body>\n';
-        html += `<div class="canvas-export">\n`;
-
+    
         elements.forEach((element, index) => {
             const content = element.innerHTML.replace(/<button class="remove-btn">.*?<\/button>/s, '');
             const innerElement = element.querySelector('h2, p, button, img, hr');
@@ -372,8 +353,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 html += `    <${tagName} class="element-${index}" style="${style}">${innerElement.innerHTML}</${tagName}>\n`;
             }
         });
-
-        html += '</div>\n</body>\n</html>';
+    
+        html += '</body>\n</html>';
         return html;
     }
 
@@ -648,12 +629,7 @@ document.addEventListener('DOMContentLoaded', () => {
         el.style.height = elData.height + 'px';
         el.dataset.id = elData.id; // Set data-id attribute
 
-        // Need to attach to DOM to get offsetWidth/Height if not explicitly set
-         // This might cause a flicker, need to optimize later
-         // For now, use default sizes or require explicit size setting
-         // elData.width = snap(el.offsetWidth);
-         // elData.height = snap(el.offsetHeight);
-
+        
         renderCanvas(); // Re-render to show updated state
         return el;
     }
@@ -1046,27 +1022,7 @@ document.addEventListener('DOMContentLoaded', () => {
     undoBtn.addEventListener('click', undo);
     redoBtn.addEventListener('click', redo);
 
-    // Canvas size controls
-    const canvasWidth = document.getElementById('canvasWidth');
-    const canvasHeight = document.getElementById('canvasHeight');
-    const canvasWidthDisplay = canvasWidth.nextElementSibling;
-    const canvasHeightDisplay = canvasHeight.nextElementSibling;
-
-    // Set initial canvas size
-    canvas.style.width = '1200px';
-    canvas.style.height = '800px';
-
-    canvasWidth.addEventListener('input', (e) => {
-        const width = e.target.value;
-        canvas.style.width = width + 'px';
-        canvasWidthDisplay.textContent = width + 'px';
-        // Update the stored width in the current section
-        const page = pages[currentPageIdx];
-        if (page.sections.length) {
-            const section = page.sections[currentSectionIdx];
-            section.width = width;
-        }
-    });
+  
 
     canvasHeight.addEventListener('input', (e) => {
         const height = e.target.value;
@@ -1305,3 +1261,6 @@ function rgbToHex(rgb) {
             .join('')
     );
 } 
+
+
+
