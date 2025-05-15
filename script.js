@@ -179,6 +179,23 @@ document.addEventListener('DOMContentLoaded', () => {
                                onchange="updateElement(this.value, 'borderColor')">
                     </div>`;
                 break;
+            case 'rectangle':
+            case 'circle':
+            case 'rounded-rectangle':
+            case 'triangle':
+            case 'curve':
+                propertiesHTML = `
+                    <div class="property">
+                        <label>Shape Color:</label>
+                        <input type="color" value="#646cff" 
+                               onchange="updateElement(this.value, 'shapeColor')">
+                    </div>
+                    <div class="property">
+                        <label>Border Color:</label>
+                        <input type="color" value="${getComputedStyle(element).borderColor || '#000000'}" 
+                               onchange="updateElement(this.value, 'borderColor')">
+                    </div>`;
+                break;
         }
         
         propertiesContent.innerHTML = propertiesHTML;
@@ -242,7 +259,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const textEls = selectedElement.querySelectorAll('h1, h2, h3, h4, h5, h6, p, button, label, span');
                 textEls.forEach(el => {
                     el.style.color = value;
-                    el.setAttribute('data-applied-color', value); // optional: for easier debugging
                 });
                 
                 // Update the data model
@@ -252,14 +268,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (elData) {
                     elData.color = value;
                 }
-                
-                // Force re-render to reflect in builder
-                renderCanvas();
-                
+                break;
             }
             case 'backgroundColor': {
                 selectedElement.style.backgroundColor = value;
                 elData.backgroundColor = value;
+                break;
+            }
+            case 'shapeColor': {
+                const shapeDiv = selectedElement.querySelector('div[style*="background"]');
+                const svgPolygon = selectedElement.querySelector('svg polygon');
+                const svgPath = selectedElement.querySelector('svg path');
+
+                if (shapeDiv) {
+                    shapeDiv.style.backgroundColor = value;
+                } else if (svgPolygon) {
+                    svgPolygon.style.fill = value;
+                } else if (svgPath) {
+                    svgPath.style.stroke = value;
+                }
+                elData.shapeColor = value;
                 break;
             }
             case 'borderColor': {
@@ -339,17 +367,34 @@ document.addEventListener('DOMContentLoaded', () => {
         html += '    </style>\n</head>\n<body>\n';
     
         elements.forEach((element, index) => {
-            const content = element.innerHTML.replace(/<button class="remove-btn">.*?<\/button>/s, '');
-            const innerElement = element.querySelector('h2, p, button, img, hr');
+            const innerElement = element.querySelector('h2, p, button, img, hr, div');
             if (innerElement) {
                 const tagName = innerElement.tagName.toLowerCase();
-                // Get position and size
-                const left = element.style.left || '0px';
-                const top = element.style.top || '0px';
-                const width = element.style.width || element.offsetWidth + 'px';
-                const height = element.style.height || element.offsetHeight + 'px';
+                // Get computed position relative to canvas
+                const rect = element.getBoundingClientRect();
+                const canvasRect = canvas.getBoundingClientRect();
+                const left = rect.left - canvasRect.left;
+                const top = rect.top - canvasRect.top;
+                
+                // Use actual element dimensions
+                const width = element.offsetWidth + 'px';
+                const height = element.offsetHeight + 'px';
+                
                 // Inline style for absolute positioning
-                const style = `position:absolute;left:${left};top:${top};width:${width};height:${height};`;
+                let style = `position:absolute;left:${left}px;top:${top}px;width:${width};height:${height};`;
+
+                // Add this to the element style generation (from user request)
+                if (element.style.backgroundColor) {
+                    style += `background-color: ${element.style.backgroundColor};`;
+                }
+                const shape = element.querySelector('div, svg');
+                if (shape) {
+                    const colorValueForShape = shape.style.backgroundColor || shape.style.fill;
+                    if (colorValueForShape) {
+                        style += `background-color: ${colorValueForShape};`;
+                    }
+                }
+
                 html += `    <${tagName} class="element-${index}" style="${style}">${innerElement.innerHTML}</${tagName}>\n`;
             }
         });
@@ -605,13 +650,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const page = pages[currentPageIdx];
         if (!page.sections.length) return el;
         const section = page.sections[currentSectionIdx];
+
+        // Get canvas padding dynamically
+        const canvasComputedStyle = window.getComputedStyle(canvas);
+        const canvasPaddingLeft = parseInt(canvasComputedStyle.paddingLeft, 10) || 0;
+        const canvasPaddingTop = parseInt(canvasComputedStyle.paddingTop, 10) || 0;
+
         // Default element data, snapped to grid
         const elData = {
             type,
             text: type === 'heading' ? 'New Heading' : type === 'paragraph' ? 'New paragraph text' : type === 'button' ? 'New Button' : '',
             src: type === 'image' ? 'https://via.placeholder.com/300x200' : '',
-            left: snap(initialPos.x),
-            top: snap(initialPos.y),
+            left: snap(initialPos.x - canvasPaddingLeft), // Adjusted for padding
+            top: snap(initialPos.y - canvasPaddingTop),   // Adjusted for padding
             width: snap(200),
             height: snap(60),
             color: undefined,
@@ -657,10 +708,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 content = '<div style="width:100%;height:100%;background:#646cff;border-radius:24px;"></div>';
                 break;
             case 'triangle':
-                content = `<svg width="100%" height="100%" viewBox="0 0 100 100"><polygon points="50,0 100,100 0,100" style="fill:#646cff;" /></svg>`;
+                content = `<svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none"><polygon points="50,0 100,100 0,100" fill="#646cff" /></svg>`;
                 break;
             case 'curve':
-                content = `<svg width="100%" height="100%" viewBox="0 0 100 100"><path d="M0,100 Q50,0 100,100" stroke="#646cff" stroke-width="8" fill="none"/></svg>`;
+                content = `<svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0,100 Q50,0 100,100" stroke="#646cff" stroke-width="8" fill="none"/></svg>`;
                 break;
             case 'image':
                 content = '<img src="https://via.placeholder.com/300x200" alt="Placeholder image">';
@@ -754,6 +805,18 @@ document.addEventListener('DOMContentLoaded', () => {
             function onMouseUp() {
                 document.removeEventListener('mousemove', onMouseMove);
                 document.removeEventListener('mouseup', onMouseUp);
+
+                // Update elData with new position
+                const page = pages[currentPageIdx];
+                const section = page.sections[currentSectionIdx];
+                const elData = section.elements.find(data => data.id === element.dataset.id);
+                if (elData) {
+                    elData.left = parseInt(element.style.left, 10) || 0;
+                    elData.top = parseInt(element.style.top, 10) || 0;
+                    // Ensure width and height are also up-to-date in elData if they could have changed
+                    // For now, only position is updated here, assuming resize has its own update logic.
+                }
+
                 saveToHistory();
             }
 
@@ -837,113 +900,98 @@ document.addEventListener('DOMContentLoaded', () => {
         return element;
     }
 
-    // Override drop event listener to use createElementAndStore
-    canvas.addEventListener('drop', (e) => {
-        e.preventDefault();
-        const elementType = e.dataTransfer.getData('text/plain');
-        if (elementType) {
-            // Get drop position relative to canvas
-            const canvasRect = canvas.getBoundingClientRect();
-            const dropX = e.clientX - canvasRect.left;
-            const dropY = e.clientY - canvasRect.top;
-
-            // Use createElementAndStore to create, store, and add to DOM
-            createElementAndStore(elementType, { x: dropX, y: dropY });
+    // Modify renderCanvas to use the updated createElement and stored data
+    const originalRenderCanvas = renderCanvas;
+    renderCanvas = function() {
+        // Clear canvas
+        while (canvas.firstChild) canvas.removeChild(canvas.firstChild);
+        const page = pages[currentPageIdx];
+        if (!page.sections.length) {
+            const newDropZone = document.createElement('div');
+            newDropZone.className = 'drop-zone';
+            newDropZone.innerHTML = '<p>Add a section to start building</p>';
+            canvas.appendChild(newDropZone);
+            return;
         }
-    });
+        // Render current section
+        const section = page.sections[currentSectionIdx];
+        const sectionDiv = document.createElement('div');
+        sectionDiv.className = 'section-container';
+        sectionDiv.style.position = 'relative';
+        sectionDiv.style.minHeight = '400px'; // Placeholder, needs dynamic height
+        sectionDiv.style.width = '100%';
+        sectionDiv.style.background = 'transparent'; // Placeholder
+        section.elements.forEach(elData => {
+            const el = createElement(elData.type);
+            // Set content
+            if (elData.type === 'heading') el.querySelector('h2').textContent = elData.text;
+            if (elData.type === 'paragraph') el.querySelector('p').textContent = elData.text;
+            if (elData.type === 'button') el.querySelector('button').textContent = elData.text;
+            if (elData.type === 'image' && elData.src) el.querySelector('img').src = elData.src;
+            // Set position and size from stored data
+            el.style.left = elData.left + 'px';
+            el.style.top = elData.top + 'px';
+            el.style.width = elData.width + 'px';
+            el.style.height = elData.height + 'px';
+            // Set color from stored data
+            if (elData.color) {
+                const textEls = el.querySelectorAll('h1, h2, h3, h4, h5, h6, p, button, label, span');
+                textEls.forEach(elm => elm.style.color = elData.color);
+            }
+            if (elData.backgroundColor) el.style.backgroundColor = elData.backgroundColor; // Apply background color to the element container
+            if (elData.borderColor) el.style.borderColor = elData.borderColor; // Apply border color
+            el.dataset.id = elData.id; // Set data-id for lookup
 
-     // Modify renderCanvas to use the updated createElement and stored data
-     const originalRenderCanvas = renderCanvas;
-     renderCanvas = function() {
-         // Clear canvas
-         while (canvas.firstChild) canvas.removeChild(canvas.firstChild);
-         const page = pages[currentPageIdx];
-         if (!page.sections.length) {
-             const newDropZone = document.createElement('div');
-             newDropZone.className = 'drop-zone';
-             newDropZone.innerHTML = '<p>Add a section to start building</p>';
-             canvas.appendChild(newDropZone);
-             return;
-         }
-         // Render current section
-         const section = page.sections[currentSectionIdx];
-         const sectionDiv = document.createElement('div');
-         sectionDiv.className = 'section-container';
-         sectionDiv.style.position = 'relative';
-         sectionDiv.style.minHeight = '400px'; // Placeholder, needs dynamic height
-         sectionDiv.style.width = '100%';
-         sectionDiv.style.background = 'transparent'; // Placeholder
-         section.elements.forEach(elData => {
-             const el = createElement(elData.type);
-             // Set content
-             if (elData.type === 'heading') el.querySelector('h2').textContent = elData.text;
-             if (elData.type === 'paragraph') el.querySelector('p').textContent = elData.text;
-             if (elData.type === 'button') el.querySelector('button').textContent = elData.text;
-             if (elData.type === 'image' && elData.src) el.querySelector('img').src = elData.src;
-             // Set position and size from stored data
-             el.style.left = elData.left + 'px';
-             el.style.top = elData.top + 'px';
-             el.style.width = elData.width + 'px';
-             el.style.height = elData.height + 'px';
-             // Set color from stored data
-             if (elData.color) {
-                 const textEls = el.querySelectorAll('h1, h2, h3, h4, h5, h6, p, button, label, span');
-                 textEls.forEach(elm => elm.style.color = elData.color);
-             }
-             if (elData.backgroundColor) el.style.backgroundColor = elData.backgroundColor; // Apply background color to the element container
-             if (elData.borderColor) el.style.borderColor = elData.borderColor; // Apply border color
-             el.dataset.id = elData.id; // Set data-id for lookup
-
-             // Re-add event listeners after recreating element in renderCanvas
-              el.addEventListener('click', (e) => {
-                 if (e.target !== el.querySelector('.remove-btn') && e.target !== el.querySelector('.remove-btn i')) {
-                     document.querySelectorAll('.draggable').forEach(fel => fel.classList.remove('selected'));
-                     el.classList.add('selected');
-                     selectedElement = el;
-                     updatePropertiesPanel(el);
+            // Re-add event listeners after recreating element in renderCanvas
+             el.addEventListener('click', (e) => {
+                if (e.target !== el.querySelector('.remove-btn') && e.target !== el.querySelector('.remove-btn i')) {
+                    document.querySelectorAll('.draggable').forEach(fel => fel.classList.remove('selected'));
+                    el.classList.add('selected');
+                    selectedElement = el;
+                    updatePropertiesPanel(el);
+                }
+             });
+             // Re-add dblclick for inline editing
+             el.addEventListener('dblclick', function(e) {
+                 const target = el.querySelector('h2, p, button');
+                 if (target && (target.tagName === 'H2' || target.tagName === 'P')) {
+                     target.contentEditable = true;
+                     target.focus();
+                     target.onblur = () => {
+                         target.contentEditable = false;
+                          // Update text in data on blur
+                          const page = pages[currentPageIdx];
+                          const section = page.sections[currentSectionIdx];
+                          const elData = section.elements.find(data => data.id === el.dataset.id);
+                          if (elData) {
+                              elData.text = target.textContent;
+                          }
+                     };
                  }
-              });
-              // Re-add dblclick for inline editing
-              el.addEventListener('dblclick', function(e) {
-                  const target = el.querySelector('h2, p, button');
-                  if (target && (target.tagName === 'H2' || target.tagName === 'P')) {
-                      target.contentEditable = true;
-                      target.focus();
-                      target.onblur = () => {
-                          target.contentEditable = false;
-                           // Update text in data on blur
-                           const page = pages[currentPageIdx];
-                           const section = page.sections[currentSectionIdx];
-                           const elData = section.elements.find(data => data.id === el.dataset.id);
-                           if (elData) {
-                               elData.text = target.textContent;
-                           }
-                      };
-                  }
-              });
-              // Re-add remove button click logic
-              const removeBtn = el.querySelector('.remove-btn');
-              if (removeBtn) {
-                 removeBtn.onclick = () => {
-                     el.remove();
-                     // Remove from data
-                     const page = pages[currentPageIdx];
-                     const section = page.sections[currentSectionIdx];
-                     section.elements = section.elements.filter(data => data.id !== el.dataset.id);
-                     if (canvas.children.length === 0) {
-                         const newDropZone = document.createElement('div');
-                         newDropZone.className = 'drop-zone';
-                         newDropZone.innerHTML = '<p>Drag and drop elements here</p>';
-                         canvas.appendChild(newDropZone);
-                     }
-                     propertiesContent.innerHTML = '<p class="no-selection">Select an element to edit its properties</p>';
-                 };
-              }
+             });
+             // Re-add remove button click logic
+             const removeBtn = el.querySelector('.remove-btn');
+             if (removeBtn) {
+                removeBtn.onclick = () => {
+                    el.remove();
+                    // Remove from data
+                    const page = pages[currentPageIdx];
+                    const section = page.sections[currentSectionIdx];
+                    section.elements = section.elements.filter(data => data.id !== el.dataset.id);
+                    if (canvas.children.length === 0) {
+                        const newDropZone = document.createElement('div');
+                        newDropZone.className = 'drop-zone';
+                        newDropZone.innerHTML = '<p>Drag and drop elements here</p>';
+                        canvas.appendChild(newDropZone);
+                    }
+                    propertiesContent.innerHTML = '<p class="no-selection">Select an element to edit its properties</p>';
+                };
+             }
 
-             sectionDiv.appendChild(el);
-         });
-         canvas.appendChild(sectionDiv);
-     };
+            sectionDiv.appendChild(el);
+        });
+        canvas.appendChild(sectionDiv);
+    };
 
     // Initial render
     renderPages();
@@ -1128,68 +1176,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize saved elements
     renderSavedElements();
-
-    // Modify drop handler to handle saved elements
-    canvas.addEventListener('drop', (e) => {
-        e.preventDefault();
-        const data = e.dataTransfer.getData('text/plain');
-        try {
-            const savedElement = JSON.parse(data);
-            if (savedElement.type) {
-                // Handle saved element drop
-                const canvasRect = canvas.getBoundingClientRect();
-                const dropX = e.clientX - canvasRect.left;
-                const dropY = e.clientY - canvasRect.top;
-                
-                const page = pages[currentPageIdx];
-                const section = page.sections[currentSectionIdx];
-                
-                const newElData = {
-                    ...savedElement,
-                    id: Math.random().toString(36).substr(2, 9),
-                    left: snap(dropX),
-                    top: snap(dropY)
-                };
-                
-                section.elements.push(newElData);
-                saveToHistory();
-                renderCanvas();
-            }
-        } catch {
-            // Handle regular element drop
-            const elementType = data;
-            if (elementType) {
-                const canvasRect = canvas.getBoundingClientRect();
-                const dropX = e.clientX - canvasRect.left;
-                const dropY = e.clientY - canvasRect.top;
-                createElementAndStore(elementType, { x: dropX, y: dropY });
-                saveToHistory();
-            }
-        }
-    });
-
-    // Add saveToHistory calls to all state-changing operations
-    const originalAddSection = addSectionBtn.onclick;
-    addSectionBtn.onclick = () => {
-        originalAddSection();
-        saveToHistory();
-    };
-
-    const originalAddPage = addPageBtn.onclick;
-    addPageBtn.onclick = () => {
-        originalAddPage();
-        saveToHistory();
-    };
-
-    // Modify element removal to save history
-    const originalRemoveElement = removeBtn.onclick;
-    removeBtn.onclick = () => {
-        originalRemoveElement();
-        saveToHistory();
-    };
-
-    // Initialize history
-    saveToHistory();
 
     // Attach close event to all .close buttons
     const closeButtons = document.querySelectorAll('.close');

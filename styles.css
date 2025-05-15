@@ -319,6 +319,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    transform: none !important;
+    font-size: 12px !important;
 }
 .draggable:hover .remove-btn {
     opacity: 1;
@@ -468,3 +470,13 @@ code {
     }
 } 
 
+.draggable svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.draggable polygon, 
+.draggable path {
+    vector-effect: non-scaling-stroke;
+}
